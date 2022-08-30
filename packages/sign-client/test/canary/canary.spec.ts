@@ -19,37 +19,41 @@ const log = (log: string) => {
 describe("Canary", () => {
   describe("HappyPath", () => {
     it("connects", async () => {
+      const start = Date.now();
       const clients = await initTwoClients();
       log(`Clients initialized (relay '${TEST_RELAY_URL}')`);
       const { pairingA, sessionA } = await testConnectMethod(clients);
       log(
         `Clients connected (relay '${TEST_RELAY_URL}', pairing topic '${pairingA.topic}', session topic '${sessionA.topic}')`,
       );
-
-      await Promise.all([
-        new Promise<void>((resolve, reject) => {
-          const eventPayload: any = {
-            topic: sessionA.topic,
-            ...TEST_EMIT_PARAMS,
-          };
-
-          try {
-            clients.B.on("session_delete", (event: any) => {
-              expect(eventPayload.topic).to.eql(event.topic);
-              resolve();
-            });
-          } catch (e) {
-            reject();
-          }
-        }),
-        new Promise<void>((resolve) => {
-          clients.A.disconnect({
-            topic: sessionA.topic,
-            reason: getSdkError("USER_DISCONNECTED"),
+      const promise = new Promise<void>((resolve, reject) => {
+        try {
+          clients.B.on("session_delete", (event: any) => {
+            expect(sessionA.topic).to.eql(event.topic);
+            resolve();
           });
-          resolve();
-        }),
-      ]);
+        } catch (e) {
+          reject();
+        }
+      });
+      await clients.A.disconnect({
+        topic: sessionA.topic,
+        reason: getSdkError("USER_DISCONNECTED"),
+      });
+
+      const latencyMs = Date.now() - start;
+      const metric_prefix = "HappyPath.connects";
+      const successful = true;
+      await uploadCanaryResultsToCloudWatch(
+        environment,
+        TEST_RELAY_URL,
+        metric_prefix,
+        successful,
+        latencyMs,
+      );
+
+      await promise;
+
       log("Clients disconnected");
 
       deleteClients(clients);
@@ -57,18 +61,9 @@ describe("Canary", () => {
     }, 120_000);
   });
   afterEach(async (done) => {
-    const { suite, name, result } = done.meta;
-    const metric_prefix = `${suite.name}.${name}`;
+    const { result } = done.meta;
     const nowTimestamp = Date.now();
     const latencyMs = nowTimestamp - (result?.startTime || nowTimestamp);
-    const successful = result?.state === "pass";
     log(`Canary finished in state ${result?.state} took ${latencyMs}ms`);
-    await uploadCanaryResultsToCloudWatch(
-      environment,
-      TEST_RELAY_URL,
-      metric_prefix,
-      successful,
-      latencyMs,
-    );
   });
 });
