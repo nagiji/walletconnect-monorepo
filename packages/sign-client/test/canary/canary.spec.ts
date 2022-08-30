@@ -60,7 +60,7 @@ describe("Canary", () => {
 
       deleteClients(clients);
       log("Clients deleted");
-    }, 120_000);
+    }, 300_000);
   });
   afterEach(async (done) => {
     const { result } = done.meta;
