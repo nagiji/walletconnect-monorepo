@@ -54,7 +54,7 @@ import {
 
 import {
   EXPIRER_EVENTS,
-  SESSION_EXPIRY,
+  SESSION_DEFAULT_TTL,
   PROPOSAL_EXPIRY,
   ENGINE_CONTEXT,
   ENGINE_RPC_OPTS,
@@ -169,7 +169,7 @@ export class Engine extends IEngine {
       namespaces,
       requiredNamespaces,
       controller: { publicKey: selfPublicKey, metadata: this.client.metadata },
-      expiry: SESSION_EXPIRY,
+      expiry: calcExpiry(SESSION_DEFAULT_TTL),
     };
 
     await this.client.core.relayer.subscribe(sessionTopic);
@@ -192,7 +192,7 @@ export class Engine extends IEngine {
       controller: selfPublicKey,
     };
     await this.client.session.set(sessionTopic, session);
-    await this.setExpiry(sessionTopic, SESSION_EXPIRY);
+    await this.setExpiry(sessionTopic, calcExpiry(SESSION_DEFAULT_TTL));
     if (pairingTopic)
       await this.client.pairing.update(pairingTopic, { peerMetadata: session.peer.metadata });
 
@@ -246,7 +246,7 @@ export class Engine extends IEngine {
       if (error) reject(error);
       else resolve();
     });
-    await this.setExpiry(topic, SESSION_EXPIRY);
+    await this.setExpiry(topic, calcExpiry(SESSION_DEFAULT_TTL));
 
     return { acknowledged };
   };
@@ -662,7 +662,7 @@ export class Engine extends IEngine {
     const { id } = payload;
     try {
       this.isValidExtend({ topic });
-      await this.setExpiry(topic, SESSION_EXPIRY);
+      await this.setExpiry(topic, calcExpiry(SESSION_DEFAULT_TTL));
       await this.sendResult<"wc_sessionExtend">(id, topic, true);
       this.client.events.emit("session_extend", { id, topic });
     } catch (err: any) {
